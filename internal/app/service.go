@@ -1,0 +1,91 @@
+// Package app holds the application core: use cases that orchestrate the domain
+// through ports. It depends only on the domain and the port interfaces, never
+// on a concrete adapter.
+package app
+
+import (
+	"errors"
+	"fmt"
+
+	"pcapviz/internal/domain"
+	"pcapviz/internal/port"
+)
+
+// ErrNotFound is returned when a requested packet does not exist.
+var ErrNotFound = errors.New("packet not found")
+
+// Service wires the in-memory index and the packet decoder behind the use
+// cases consumed by the driving (HTTP) adapter.
+type Service struct {
+	store   port.IndexStore
+	decoder port.Decoder
+}
+
+// New builds a Service from its outbound ports.
+func New(store port.IndexStore, decoder port.Decoder) *Service {
+	return &Service{store: store, decoder: decoder}
+}
+
+// Load replaces the current capture with the packets produced by src.
+func (s *Service) Load(src port.PacketSource) error {
+	s.store.Reset()
+	if err := src.ForEach(func(p domain.Packet, raw []byte) error {
+		s.store.Add(p, raw)
+		return nil
+	}); err != nil {
+		return err
+	}
+	s.store.SetLinkType(src.LinkType())
+	return nil
+}
+
+// Count returns the number of loaded packets.
+func (s *Service) Count() int { return s.store.Count() }
+
+// Page is the result of ListPackets.
+type Page struct {
+	Items  []domain.Packet `json:"items"`
+	Total  int             `json:"total"`
+	Offset int             `json:"offset"`
+	Limit  int             `json:"limit"`
+}
+
+// ListPackets returns a filtered, paginated slice of packet summaries. An empty
+// filter matches everything; an invalid filter returns an error.
+func (s *Service) ListPackets(filter string, offset, limit int) (Page, error) {
+	match := domain.MatchAll
+	if filter != "" {
+		f, err := domain.ParseFilter(filter)
+		if err != nil {
+			return Page{}, fmt.Errorf("invalid filter: %w", err)
+		}
+		match = f.Eval
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	if limit <= 0 {
+		limit = 100
+	}
+	items, total := s.store.Page(match, offset, limit)
+	return Page{Items: items, Total: total, Offset: offset, Limit: limit}, nil
+}
+
+// PacketDetail decodes a single packet on demand.
+func (s *Service) PacketDetail(num int) (domain.Detail, error) {
+	raw, ok := s.store.Raw(num)
+	if !ok {
+		return domain.Detail{}, ErrNotFound
+	}
+	return s.decoder.Detail(raw, s.store.LinkType(), num)
+}
+
+// Stats computes the capture overview.
+func (s *Service) Stats() domain.Stats {
+	return domain.ComputeStats(s.store.All(), 60, 20)
+}
+
+// Conversations returns just the conversation list from the overview.
+func (s *Service) Conversations() []domain.Conversation {
+	return s.Stats().Conversations
+}
