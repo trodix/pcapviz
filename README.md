@@ -72,6 +72,22 @@ make desktop-all      # les deux
 
 Puis ouvrir un fichier via le bouton « Ouvrir un .pcap » ou en préchargeant en argument.
 
+## CI / Releases (GitHub Actions)
+
+- **CI** (`.github/workflows/ci.yml`) — sur push/PR (`main`, `develop`) : build du
+  frontend, `go vet`, `go test`, puis build des 4 binaires (le runner installe
+  `libgtk-3-dev` + `libwebkit2gtk-4.1-dev` pour le desktop Linux).
+- **Release** (`.github/workflows/release.yml`) — sur tag `v*` : build des 4 binaires
+  et publication d'une **GitHub Release** avec les artefacts attachés.
+
+```sh
+git tag v1.0.0 && git push origin v1.0.0   # déclenche la release
+```
+
+Binaires publiés : `pcapviz-linux-amd64`, `pcapviz-windows-amd64.exe`,
+`pcapviz-desktop-linux-amd64`, `pcapviz-desktop-windows-amd64.exe`. La logique de build
+est partagée dans `.github/build.sh`.
+
 ## Développement
 
 Deux terminaux :
