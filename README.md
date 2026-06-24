@@ -1,8 +1,16 @@
 # pcapviz
 
-Analyseur de captures réseau **`.pcap` / `.pcapng`** portable, packagé en **un seul
-binaire** (Windows / Linux), avec une interface web servie en local. Pensé pour les
-environnements où Wireshark n'est pas installable.
+Analyseur de captures réseau **`.pcap` / `.pcapng`** portable (Windows / Linux), pensé
+pour les environnements où Wireshark n'est pas installable. Deux interfaces partageant
+le même cœur Go :
+
+- **Serveur web** (`pcapviz`) — ouvre l'UI dans le navigateur. Binaire **unique, pur Go,
+  statique**, cross-compilé trivialement.
+- **Application desktop** (`pcapviz-desktop`) — fenêtre **webview native de l'OS**
+  (WebKitGTK sous Linux, WebView2 sous Windows). Pas de Chromium embarqué : **bien moins
+  de RAM qu'Electron**.
+
+Sous le capot :
 
 - **Backend Go** — lecture pcap/pcapng 100 % pure Go (gopacket/pcapgo, sans libpcap),
   perf quasi-native, frontend embarqué dans le binaire (`//go:embed`).
@@ -20,7 +28,9 @@ environnements où Wireshark n'est pas installable.
 
 ## Build
 
-Prérequis : Go ≥ 1.24, Node ≥ 20.
+Prérequis communs : Go ≥ 1.24, Node ≥ 20.
+
+### Serveur web (pur Go, portable)
 
 ```sh
 make build            # frontend + binaire -> bin/pcapviz
@@ -28,12 +38,36 @@ make dist             # bin/pcapviz-linux-amd64 et bin/pcapviz-windows-amd64.exe
 make test             # tests Go
 ```
 
+### Application desktop (webview native)
+
+```sh
+make desktop          # bin/pcapviz-desktop          (Linux natif)
+make desktop-windows  # bin/pcapviz-desktop-windows-amd64.exe (cross-compilé depuis Linux)
+make desktop-all      # les deux
+```
+
+- **Linux** : build natif, nécessite `gcc`, `gtk3` et `webkit2gtk-4.1` (paquets
+  `gtk3-devel` + `webkit2gtk4.1-devel` sur Fedora). Au runtime : WebKitGTK installé.
+- **Windows** : cross-compilé depuis Linux (go-webview2, pur Go, sans CGO). Au runtime :
+  le runtime WebView2 — déjà présent sur Windows 10/11.
+- Wails n'est volontairement pas utilisé : il ne supporte pas la cross-compilation, ce qui
+  empêcherait de produire le `.exe` Windows depuis Linux.
+
 ## Utilisation
+
+### Serveur web
 
 ```sh
 ./bin/pcapviz                 # ouvre http://127.0.0.1:8080 et le navigateur
 ./bin/pcapviz capture.pcap    # précharge une capture
 ./bin/pcapviz -addr 127.0.0.1:9000 -no-browser
+```
+
+### Desktop
+
+```sh
+./bin/pcapviz-desktop                 # fenêtre native standalone
+./bin/pcapviz-desktop capture.pcap    # précharge une capture
 ```
 
 Puis ouvrir un fichier via le bouton « Ouvrir un .pcap » ou en préchargeant en argument.
@@ -50,15 +84,18 @@ cd web && npm install && npm run dev    # Vite (HMR), /api proxifié vers :8080
 ## Architecture
 
 ```
-cmd/pcapviz        composition root (câblage des adapters, serveur, navigateur)
-internal/domain    cœur pur : modèles, moteur de filtre, statistiques
-internal/app       use cases (orchestration via les ports)
-internal/port      interfaces : PacketSource, IndexStore, Decoder
+cmd/pcapviz          entrypoint serveur web (ouvre le navigateur)
+cmd/pcapviz-desktop  entrypoint desktop (fenêtre webview native)
+internal/bootstrap   câblage partagé des adapters (composition root)
+internal/domain      cœur pur : modèles, moteur de filtre, statistiques
+internal/app         use cases (orchestration via les ports)
+internal/port        interfaces : PacketSource, IndexStore, Decoder
 internal/adapter/
-  pcap             lecture/décodage gopacket -> PacketSource + Decoder
-  memstore         index en mémoire -> IndexStore
-  http             API REST + frontend embarqué (driving adapter)
-web                application Svelte + TypeScript (Vite)
+  pcap               lecture/décodage gopacket -> PacketSource + Decoder
+  memstore           index en mémoire -> IndexStore
+  http               API REST + frontend embarqué (driving adapter)
+internal/desktop     webview native par OS (cgo WebKitGTK / go-webview2), build tags
+web                  application Svelte + TypeScript (Vite)
 ```
 
 Règle de dépendance : `adapter → app → domain`. Le domaine n'importe aucune techno.

@@ -1,7 +1,6 @@
-// Command pcapviz is a portable, single-binary web analyzer for .pcap/.pcapng
-// captures. It starts a local HTTP server, serves an embedded Svelte UI and
-// exposes a small REST API. This file is the composition root: it wires the
-// concrete adapters behind the application core's ports.
+// Command pcapviz runs the analyzer as a local web server and opens the UI in
+// the default browser. For a standalone desktop window instead, see
+// cmd/pcapviz-desktop. Both share the same stack via internal/bootstrap.
 package main
 
 import (
@@ -14,11 +13,7 @@ import (
 	"runtime"
 	"time"
 
-	httpadapter "pcapviz/internal/adapter/http"
-	"pcapviz/internal/adapter/memstore"
-	"pcapviz/internal/adapter/pcap"
-	"pcapviz/internal/app"
-	"pcapviz/internal/port"
+	"pcapviz/internal/bootstrap"
 )
 
 func main() {
@@ -26,29 +21,16 @@ func main() {
 	noBrowser := flag.Bool("no-browser", false, "do not open the browser on start")
 	flag.Parse()
 
-	// Wire the hexagon: in-memory store + pcap decoder behind the use cases.
-	store := memstore.New()
-	service := app.New(store, pcap.NewDecoder())
-
-	// Inject how to open a capture file (keeps the HTTP adapter decoupled).
-	opener := func(path string) (port.PacketSource, error) { return pcap.Open(path) }
-
-	// Optional positional arg: preload a capture at startup.
-	if path := flag.Arg(0); path != "" {
-		src, err := pcap.Open(path)
-		if err != nil {
-			log.Fatalf("open %s: %v", path, err)
-		}
-		if err := service.Load(src); err != nil {
-			log.Fatalf("load %s: %v", path, err)
-		}
-		log.Printf("loaded %d packets from %s", service.Count(), path)
+	svc := bootstrap.NewService()
+	if err := bootstrap.Preload(svc, flag.Arg(0)); err != nil {
+		log.Fatalf("preload %s: %v", flag.Arg(0), err)
+	}
+	if n := svc.Count(); n > 0 {
+		log.Printf("loaded %d packets from %s", n, flag.Arg(0))
 	}
 
-	handler := httpadapter.NewHandler(service, opener)
 	url := "http://" + *addr
-
-	srv := &http.Server{Addr: *addr, Handler: handler}
+	srv := &http.Server{Addr: *addr, Handler: bootstrap.Handler(svc)}
 	go func() {
 		fmt.Printf("pcapviz running at %s\n", url)
 		if !*noBrowser {
