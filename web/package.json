@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "dev": "vite",
     "build": "svelte-check --tsconfig ./tsconfig.json && vite build",
@@ -14,7 +17,7 @@
     "@tsconfig/svelte": "^5.0.4",
     "svelte": "^5.19.0",
     "svelte-check": "^4.1.4",
-    "typescript": "^5.7.3",
+    "typescript": "6.0.2",
     "vite": "^6.0.7"
   }
 }

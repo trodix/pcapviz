@@ -8,13 +8,18 @@ import (
 	"embed"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"net/http"
 	"os"
+	"runtime/debug"
 	"strconv"
+	"strings"
+	"time"
 
 	"pcapviz/internal/app"
+	"pcapviz/internal/observ"
 	"pcapviz/internal/port"
 )
 
@@ -29,11 +34,13 @@ type Opener func(path string) (port.PacketSource, error)
 type Handler struct {
 	svc  *app.Service
 	open Opener
+	log  *observ.Logger
 }
 
-// NewHandler builds the HTTP handler tree.
-func NewHandler(svc *app.Service, open Opener) http.Handler {
-	h := &Handler{svc: svc, open: open}
+// NewHandler builds the HTTP handler tree, wrapped with panic-recovery and
+// request-logging middleware.
+func NewHandler(svc *app.Service, open Opener, logger *observ.Logger) http.Handler {
+	h := &Handler{svc: svc, open: open, log: logger}
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /api/status", h.status)
@@ -44,9 +51,51 @@ func NewHandler(svc *app.Service, open Opener) http.Handler {
 	mux.HandleFunc("POST /api/open", h.openPath)
 	mux.HandleFunc("POST /api/upload", h.upload)
 
+	// Observability endpoints (see server_logs.go).
+	mux.HandleFunc("GET /api/logs", h.getLogs)
+	mux.HandleFunc("GET /api/logs/level", h.getLogLevel)
+	mux.HandleFunc("POST /api/logs/level", h.setLogLevel)
+	mux.HandleFunc("GET /api/crashes", h.listCrashes)
+	mux.HandleFunc("GET /api/crashes/{name}", h.getCrash)
+
 	sub, _ := fs.Sub(distFS, "dist")
 	mux.Handle("/", http.FileServer(http.FS(sub)))
-	return mux
+	return h.middleware(mux)
+}
+
+// statusRecorder captures the response status for access logging.
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+}
+
+func (s *statusRecorder) WriteHeader(code int) {
+	s.status = code
+	s.ResponseWriter.WriteHeader(code)
+}
+
+// middleware recovers panics (so one bad request can't take down the server)
+// and logs each request at debug level.
+func (h *Handler) middleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if rec := recover(); rec != nil {
+				h.log.Slog().Error("panic recovered in HTTP handler",
+					"method", r.Method, "path", r.URL.Path,
+					"panic", fmt.Sprint(rec), "stack", string(debug.Stack()))
+				http.Error(w, "internal server error", http.StatusInternalServerError)
+			}
+		}()
+		start := time.Now()
+		sr := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+		next.ServeHTTP(sr, r)
+		// Skip the logs endpoints to avoid the viewer logging its own polling.
+		if !strings.HasPrefix(r.URL.Path, "/api/logs") {
+			h.log.Slog().Debug("request",
+				"method", r.Method, "path", r.URL.Path,
+				"status", sr.status, "took", time.Since(start).String())
+		}
+	})
 }
 
 func (h *Handler) status(w http.ResponseWriter, r *http.Request) {
@@ -136,6 +185,7 @@ func (h *Handler) upload(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) loadFrom(w http.ResponseWriter, path string) {
 	src, err := h.open(path)
 	if err != nil {
+		h.log.Slog().Warn("open capture failed", "path", path, "error", err.Error())
 		writeErr(w, http.StatusBadRequest, err)
 		return
 	}

@@ -31,3 +31,14 @@ const protoColors: Record<string, string> = {
 export function protoColor(proto: string): string {
   return protoColors[proto] ?? "#94a3b8";
 }
+
+const levelColors: Record<string, string> = {
+  ERROR: "#ef4444",
+  WARN: "#f59e0b",
+  INFO: "#38bdf8",
+  DEBUG: "#94a3b8",
+};
+
+export function levelColor(level: string): string {
+  return levelColors[level.toUpperCase()] ?? "#94a3b8";
+}

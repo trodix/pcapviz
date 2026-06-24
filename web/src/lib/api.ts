@@ -120,3 +120,56 @@ export function uploadFile(file: File): Promise<{ count: number }> {
   fd.append("file", file);
   return fetch("/api/upload", { method: "POST", body: fd }).then((r) => json(r));
 }
+
+// --- Observability (logs & crash reports) ---
+
+export interface LogEntry {
+  time: string;
+  level: string;
+  message: string;
+  attrs?: Record<string, unknown>;
+}
+
+export interface LogLevel {
+  level: string;
+  debug: boolean;
+}
+
+export interface CrashInfo {
+  name: string;
+  time: string;
+  size: number;
+}
+
+export function getLogs(level: string, limit = 500): Promise<LogEntry[]> {
+  const q = new URLSearchParams({ level, limit: String(limit) });
+  return fetch(`/api/logs?${q}`).then((r) => json<LogEntry[]>(r));
+}
+
+export function logsTextUrl(level: string): string {
+  const q = new URLSearchParams({ level, format: "text", limit: "5000" });
+  return `/api/logs?${q}`;
+}
+
+export function getLogLevel(): Promise<LogLevel> {
+  return fetch("/api/logs/level").then((r) => json<LogLevel>(r));
+}
+
+export function setDebug(debug: boolean): Promise<LogLevel> {
+  return fetch("/api/logs/level", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ debug }),
+  }).then((r) => json<LogLevel>(r));
+}
+
+export function getCrashes(): Promise<CrashInfo[]> {
+  return fetch("/api/crashes").then((r) => json<CrashInfo[]>(r));
+}
+
+export function getCrash(name: string): Promise<string> {
+  return fetch(`/api/crashes/${encodeURIComponent(name)}`).then((r) => {
+    if (!r.ok) throw new Error(r.statusText);
+    return r.text();
+  });
+}

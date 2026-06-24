@@ -6,6 +6,8 @@ package app
 import (
 	"errors"
 	"fmt"
+	"log/slog"
+	"time"
 
 	"pcapviz/internal/domain"
 	"pcapviz/internal/port"
@@ -19,23 +21,31 @@ var ErrNotFound = errors.New("packet not found")
 type Service struct {
 	store   port.IndexStore
 	decoder port.Decoder
+	log     *slog.Logger
 }
 
-// New builds a Service from its outbound ports.
-func New(store port.IndexStore, decoder port.Decoder) *Service {
-	return &Service{store: store, decoder: decoder}
+// New builds a Service from its outbound ports. A nil logger is replaced by a
+// no-op logger.
+func New(store port.IndexStore, decoder port.Decoder, logger *slog.Logger) *Service {
+	if logger == nil {
+		logger = slog.New(slog.DiscardHandler)
+	}
+	return &Service{store: store, decoder: decoder, log: logger}
 }
 
 // Load replaces the current capture with the packets produced by src.
 func (s *Service) Load(src port.PacketSource) error {
+	start := time.Now()
 	s.store.Reset()
 	if err := src.ForEach(func(p domain.Packet, raw []byte) error {
 		s.store.Add(p, raw)
 		return nil
 	}); err != nil {
+		s.log.Error("capture load failed", "error", err.Error(), "packetsSoFar", s.store.Count())
 		return err
 	}
 	s.store.SetLinkType(src.LinkType())
+	s.log.Info("capture loaded", "packets", s.store.Count(), "linkType", s.store.LinkType(), "took", time.Since(start).String())
 	return nil
 }
 

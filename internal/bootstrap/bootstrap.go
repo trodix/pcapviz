@@ -11,13 +11,14 @@ import (
 	"pcapviz/internal/adapter/memstore"
 	"pcapviz/internal/adapter/pcap"
 	"pcapviz/internal/app"
+	"pcapviz/internal/observ"
 	"pcapviz/internal/port"
 )
 
 // NewService builds the application service backed by the in-memory store and
-// the pcap decoder.
-func NewService() *app.Service {
-	return app.New(memstore.New(), pcap.NewDecoder())
+// the pcap decoder, logging through the given logger.
+func NewService(logger *observ.Logger) *app.Service {
+	return app.New(memstore.New(), pcap.NewDecoder(), logger.Slog())
 }
 
 // opener returns how to turn a file path into a packet source (keeps the HTTP
@@ -26,9 +27,10 @@ func opener() httpadapter.Opener {
 	return func(path string) (port.PacketSource, error) { return pcap.Open(path) }
 }
 
-// Handler builds the HTTP handler (REST API + embedded UI) for the service.
-func Handler(svc *app.Service) http.Handler {
-	return httpadapter.NewHandler(svc, opener())
+// Handler builds the HTTP handler (REST API + embedded UI + logs API) for the
+// service.
+func Handler(svc *app.Service, logger *observ.Logger) http.Handler {
+	return httpadapter.NewHandler(svc, opener(), logger)
 }
 
 // Preload loads a capture file into the service at startup. A path of "" is a

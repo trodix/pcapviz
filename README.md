@@ -72,6 +72,23 @@ make desktop-all      # les deux
 
 Puis ouvrir un fichier via le bouton « Ouvrir un .pcap » ou en préchargeant en argument.
 
+## Debug & logs
+
+Pas de fichier de log créé au démarrage. À la place :
+
+- **Logs en mémoire** (ring buffer ~2000 entrées) + sortie stderr, consultables **dans
+  l'app** via l'onglet **Logs** : filtre par niveau (error/warn/info/debug), **toggle
+  Debug à chaud** (les logs debug ne sont pas stockés tant qu'il est off), auto-refresh,
+  et bouton **Télécharger** (pour joindre à un rapport de bug).
+- **Récupération des panics HTTP** : une requête qui plante n'abat pas le serveur, la
+  stack est loguée en `error`.
+- **Rapport de crash** écrit **uniquement en cas de crash** dans
+  `~/.cache/pcapviz/crashes/` (panic + stack + logs récents). Consultable dans l'onglet
+  Logs après redémarrage (utile car le buffer mémoire est perdu au crash).
+
+Démarrer avec le debug activé : `./bin/pcapviz -debug` (ou `pcapviz-desktop -debug`).
+API : `GET /api/logs`, `GET|POST /api/logs/level`, `GET /api/crashes`.
+
 ## CI / Releases (GitHub Actions)
 
 - **CI** (`.github/workflows/ci.yml`) — sur push/PR (`main`, `develop`) : build du

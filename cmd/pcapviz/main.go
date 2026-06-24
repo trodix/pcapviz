@@ -6,32 +6,38 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/exec"
 	"runtime"
+	"runtime/debug"
 	"time"
 
 	"pcapviz/internal/bootstrap"
+	"pcapviz/internal/observ"
 )
 
 func main() {
 	addr := flag.String("addr", "127.0.0.1:8080", "address to listen on")
 	noBrowser := flag.Bool("no-browser", false, "do not open the browser on start")
+	debugLog := flag.Bool("debug", false, "enable debug logging from start")
 	flag.Parse()
 
-	svc := bootstrap.NewService()
+	logger := observ.New(2000, *debugLog)
+	// Persist a crash report (only) if the main goroutine panics.
+	defer crashGuard(logger)
+
+	svc := bootstrap.NewService(logger)
 	if err := bootstrap.Preload(svc, flag.Arg(0)); err != nil {
-		log.Fatalf("preload %s: %v", flag.Arg(0), err)
-	}
-	if n := svc.Count(); n > 0 {
-		log.Printf("loaded %d packets from %s", n, flag.Arg(0))
+		fmt.Fprintf(os.Stderr, "preload %s: %v\n", flag.Arg(0), err)
+		os.Exit(1)
 	}
 
 	url := "http://" + *addr
-	srv := &http.Server{Addr: *addr, Handler: bootstrap.Handler(svc)}
+	srv := &http.Server{Addr: *addr, Handler: bootstrap.Handler(svc, logger)}
 	go func() {
+		defer crashGuard(logger)
+		logger.Slog().Info("server starting", "url", url)
 		fmt.Printf("pcapviz running at %s\n", url)
 		if !*noBrowser {
 			time.Sleep(300 * time.Millisecond)
@@ -40,7 +46,17 @@ func main() {
 	}()
 
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Fatal(err)
+		logger.Slog().Error("server stopped", "error", err.Error())
+		os.Exit(1)
+	}
+}
+
+// crashGuard recovers a panic, writes a crash report and exits non-zero.
+func crashGuard(logger *observ.Logger) {
+	if rec := recover(); rec != nil {
+		path, _ := logger.WriteCrashReport(rec, debug.Stack())
+		fmt.Fprintf(os.Stderr, "FATAL: %v\ncrash report written to %s\n", rec, path)
+		os.Exit(1)
 	}
 }
 

@@ -3,10 +3,11 @@
   import PacketList from "./components/PacketList.svelte";
   import PacketDetail from "./components/PacketDetail.svelte";
   import StatsView from "./components/StatsView.svelte";
+  import LogsView from "./components/LogsView.svelte";
 
   let loaded = $state(false);
   let count = $state(0);
-  let view: "packets" | "stats" = $state("packets");
+  let view: "packets" | "stats" | "logs" = $state("packets");
   let filterInput = $state("");
   let activeFilter = $state("");
   let selected = $state<number | null>(null);
@@ -74,17 +75,22 @@
     <button onclick={applyFilter}>Filtrer</button>
     <button class:active={view === "packets"} onclick={() => (view = "packets")}>Paquets</button>
     <button class:active={view === "stats"} onclick={() => (view = "stats")}>Statistiques</button>
-    <span class="muted">{count} paquets</span>
   {:else}
     <span class="grow muted">Aucune capture chargée. Ouvrez un fichier .pcap / .pcapng.</span>
   {/if}
+  <button class:active={view === "logs"} onclick={() => (view = "logs")} title="Logs & rapports de crash">Logs</button>
+  {#if loaded}<span class="muted">{count} paquets</span>{/if}
 </div>
 
 {#if error}
   <div class="error">⚠ {error}</div>
 {/if}
 
-{#if loaded}
+{#if view === "logs"}
+  <div style="flex:1; min-height:0;">
+    <LogsView />
+  </div>
+{:else if loaded}
   {#if view === "packets"}
     <div style="flex:1; display:flex; min-height:0;">
       <div style="flex:1; min-width:0; border-right:1px solid var(--border);">
