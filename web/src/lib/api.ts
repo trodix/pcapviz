@@ -173,3 +173,14 @@ export function getCrash(name: string): Promise<string> {
     return r.text();
   });
 }
+
+export interface MemInfo {
+  rss: number;
+  heapAlloc: number;
+  sys: number;
+  numGoroutine: number;
+}
+
+export function getMemInfo(): Promise<MemInfo> {
+  return fetch("/api/meminfo").then((r) => json<MemInfo>(r));
+}

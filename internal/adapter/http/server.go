@@ -57,6 +57,7 @@ func NewHandler(svc *app.Service, open Opener, logger *observ.Logger) http.Handl
 	mux.HandleFunc("POST /api/logs/level", h.setLogLevel)
 	mux.HandleFunc("GET /api/crashes", h.listCrashes)
 	mux.HandleFunc("GET /api/crashes/{name}", h.getCrash)
+	mux.HandleFunc("GET /api/meminfo", h.meminfo)
 
 	sub, _ := fs.Sub(distFS, "dist")
 	mux.Handle("/", http.FileServer(http.FS(sub)))
@@ -89,8 +90,8 @@ func (h *Handler) middleware(next http.Handler) http.Handler {
 		start := time.Now()
 		sr := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(sr, r)
-		// Skip the logs endpoints to avoid the viewer logging its own polling.
-		if !strings.HasPrefix(r.URL.Path, "/api/logs") {
+		// Skip high-frequency polling endpoints to avoid self-generated noise.
+		if !strings.HasPrefix(r.URL.Path, "/api/logs") && r.URL.Path != "/api/meminfo" {
 			h.log.Slog().Debug("request",
 				"method", r.Method, "path", r.URL.Path,
 				"status", sr.status, "took", time.Since(start).String())

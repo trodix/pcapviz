@@ -72,6 +72,11 @@ func (h *Handler) listCrashes(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, reports)
 }
 
+// meminfo returns the current process memory usage for the status bar.
+func (h *Handler) meminfo(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, observ.ReadMem())
+}
+
 func (h *Handler) getCrash(w http.ResponseWriter, r *http.Request) {
 	data, err := h.log.ReadCrash(r.PathValue("name"))
 	if err != nil {

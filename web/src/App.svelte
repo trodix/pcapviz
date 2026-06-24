@@ -4,6 +4,7 @@
   import PacketDetail from "./components/PacketDetail.svelte";
   import StatsView from "./components/StatsView.svelte";
   import LogsView from "./components/LogsView.svelte";
+  import StatusBar from "./components/StatusBar.svelte";
 
   let loaded = $state(false);
   let count = $state(0);
@@ -115,3 +116,5 @@
     </div>
   </div>
 {/if}
+
+<StatusBar />
