@@ -22,9 +22,15 @@
 
 <footer class="statusbar mono">
   {#if mem}
-    <span title="Resident Set Size — mémoire physique utilisée par le process pcapviz">
-      🧠 Mémoire <b>{bytes(mem.rss || mem.sys)}</b>
+    <span title="Mémoire physique totale du process pcapviz et de ses processus de rendu">
+      🧠 Mémoire <b>{bytes(mem.totalRSS || mem.rss || mem.sys)}</b>
     </span>
+    {#if mem.renderRSS > 0}
+      <span class="sep">·</span>
+      <span title="RSS du process Go">cœur {bytes(mem.rss)}</span>
+      <span class="sep">·</span>
+      <span title="RSS des process WebView (rendu web)">rendu {bytes(mem.renderRSS)}</span>
+    {/if}
     <span class="sep">·</span>
     <span title="Heap Go actuellement alloué">heap {bytes(mem.heapAlloc)}</span>
     <span class="sep">·</span>

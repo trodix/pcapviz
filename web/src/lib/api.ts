@@ -176,6 +176,8 @@ export function getCrash(name: string): Promise<string> {
 
 export interface MemInfo {
   rss: number;
+  renderRSS: number;
+  totalRSS: number;
   heapAlloc: number;
   sys: number;
   numGoroutine: number;
