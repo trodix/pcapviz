@@ -42,6 +42,15 @@ const respText = "HTTP/1.1 200 OK\r\nContent-Length: 16\r\n\r\nHello decrypted!"
 // tlsExchange performs a real TLS 1.2 handshake + data exchange with the given
 // cipher suite, returning the two raw streams and the key log.
 func tlsExchange(t *testing.T, suite uint16) (clientStream, serverStream, keylog []byte) {
+	return exchange(t, tls.VersionTLS12, []uint16{suite})
+}
+
+// tls13Exchange performs a real TLS 1.3 exchange (Go selects the suite).
+func tls13Exchange(t *testing.T) (clientStream, serverStream, keylog []byte) {
+	return exchange(t, tls.VersionTLS13, nil)
+}
+
+func exchange(t *testing.T, version uint16, suites []uint16) (clientStream, serverStream, keylog []byte) {
 	t.Helper()
 
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
@@ -63,15 +72,15 @@ func tlsExchange(t *testing.T, suite uint16) (clientStream, serverStream, keylog
 	var klBuf bytes.Buffer
 	serverCfg := &tls.Config{
 		Certificates: []tls.Certificate{cert},
-		MinVersion:   tls.VersionTLS12,
-		MaxVersion:   tls.VersionTLS12,
-		CipherSuites: []uint16{suite},
+		MinVersion:   version,
+		MaxVersion:   version,
+		CipherSuites: suites,
 	}
 	clientCfg := &tls.Config{
 		InsecureSkipVerify: true,
-		MinVersion:         tls.VersionTLS12,
-		MaxVersion:         tls.VersionTLS12,
-		CipherSuites:       []uint16{suite},
+		MinVersion:         version,
+		MaxVersion:         version,
+		CipherSuites:       suites,
 		KeyLogWriter:       &klBuf,
 	}
 
@@ -131,6 +140,23 @@ func TestDecryptStreams(t *testing.T) {
 		if !strings.Contains(string(s.ServerData), "Hello decrypted!") {
 			t.Errorf("suite 0x%04x: server data = %q", suite, s.ServerData)
 		}
+	}
+}
+
+func TestDecryptStreams13(t *testing.T) {
+	cStream, sStream, keylog := tls13Exchange(t)
+	s := decryptStreams(cStream, sStream, ParseKeyLog(keylog))
+	if !s.Decrypted {
+		t.Fatalf("TLS 1.3 not decrypted: %s (suite %s)", s.Note, s.CipherSuite)
+	}
+	if s.Version != "TLS 1.3" {
+		t.Errorf("version = %q", s.Version)
+	}
+	if !strings.Contains(string(s.ClientData), "GET /secret") {
+		t.Errorf("client data = %q", s.ClientData)
+	}
+	if !strings.Contains(string(s.ServerData), "Hello decrypted!") {
+		t.Errorf("server data = %q", s.ServerData)
 	}
 }
 

@@ -1,11 +1,12 @@
-// Package tlsdecrypt decrypts TLS 1.2 application data captured in a pcap, using
-// the session secrets from an SSLKEYLOGFILE (NSS key-log format). This is the
+// Package tlsdecrypt decrypts TLS application data captured in a pcap, using the
+// session secrets from an SSLKEYLOGFILE (NSS key-log format). This is the
 // standard, forward-secrecy-compatible method (the one Wireshark uses): the
-// browser/curl writes the master secret keyed by the ClientHello random, and we
-// derive the symmetric keys from it — so it works for ECDHE suites where the
-// server's private key alone would be useless.
+// browser/curl writes the secrets keyed by the ClientHello random, and we derive
+// the symmetric keys from them — so it works for ECDHE suites where the server's
+// private key alone would be useless.
 //
-// Scope (v1): TLS 1.2 with AES-128/256-GCM cipher suites.
+// Scope: TLS 1.2 (AES-GCM, via the master secret) and TLS 1.3 (AES-GCM, via the
+// handshake/application traffic secrets).
 package tlsdecrypt
 
 import (
@@ -13,40 +14,66 @@ import (
 	"strings"
 )
 
-// KeyLog maps a ClientHello random to its TLS 1.2 master secret.
-type KeyLog struct {
-	master map[[32]byte][]byte
+// secrets holds the key-log material for one connection (keyed by ClientHello
+// random). Only the fields relevant to the negotiated version are populated.
+type secrets struct {
+	master []byte // TLS 1.2: master secret
+
+	clientHandshake []byte // TLS 1.3 traffic secrets
+	serverHandshake []byte
+	clientApp       []byte
+	serverApp       []byte
 }
 
-// ParseKeyLog reads an SSLKEYLOGFILE. Only CLIENT_RANDOM lines (TLS 1.2) are
-// used in this version; other line types (TLS 1.3 traffic secrets) are ignored.
+// KeyLog maps a ClientHello random to its session secrets.
+type KeyLog struct {
+	byRandom map[[32]byte]*secrets
+}
+
+// ParseKeyLog reads an SSLKEYLOGFILE (TLS 1.2 CLIENT_RANDOM and TLS 1.3 traffic
+// secret lines).
 func ParseKeyLog(data []byte) *KeyLog {
-	kl := &KeyLog{master: map[[32]byte][]byte{}}
+	kl := &KeyLog{byRandom: map[[32]byte]*secrets{}}
 	for _, line := range strings.Split(string(data), "\n") {
-		fields := strings.Fields(line)
-		if len(fields) != 3 || fields[0] != "CLIENT_RANDOM" {
+		f := strings.Fields(line)
+		if len(f) != 3 {
 			continue
 		}
-		cr, err := hex.DecodeString(fields[1])
+		cr, err := hex.DecodeString(f[1])
 		if err != nil || len(cr) != 32 {
 			continue
 		}
-		ms, err := hex.DecodeString(fields[2])
-		if err != nil || len(ms) != 48 {
+		val, err := hex.DecodeString(f[2])
+		if err != nil {
 			continue
 		}
 		var key [32]byte
 		copy(key[:], cr)
-		kl.master[key] = ms
+		s := kl.byRandom[key]
+		if s == nil {
+			s = &secrets{}
+			kl.byRandom[key] = s
+		}
+		switch f[0] {
+		case "CLIENT_RANDOM":
+			s.master = val
+		case "CLIENT_HANDSHAKE_TRAFFIC_SECRET":
+			s.clientHandshake = val
+		case "SERVER_HANDSHAKE_TRAFFIC_SECRET":
+			s.serverHandshake = val
+		case "CLIENT_TRAFFIC_SECRET_0":
+			s.clientApp = val
+		case "SERVER_TRAFFIC_SECRET_0":
+			s.serverApp = val
+		}
 	}
 	return kl
 }
 
-// MasterSecret returns the master secret for a ClientHello random, if known.
-func (k *KeyLog) MasterSecret(clientRandom [32]byte) ([]byte, bool) {
-	ms, ok := k.master[clientRandom]
-	return ms, ok
+func (k *KeyLog) secretsFor(clientRandom [32]byte) (*secrets, bool) {
+	s, ok := k.byRandom[clientRandom]
+	return s, ok
 }
 
-// Len reports how many CLIENT_RANDOM entries were parsed.
-func (k *KeyLog) Len() int { return len(k.master) }
+// Len reports how many connections have key material.
+func (k *KeyLog) Len() int { return len(k.byRandom) }

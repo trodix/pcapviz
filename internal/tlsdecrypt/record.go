@@ -120,8 +120,13 @@ var gcmSuites = map[uint16]suiteParams{
 	0x009f: {"DHE_RSA_AES_256_GCM_SHA384", 32, sha512.New384},
 }
 
+func isGCMSuite(id uint16) bool { _, ok := gcmSuites[id]; return ok }
+
 func suiteName(id uint16) string {
 	if s, ok := gcmSuites[id]; ok {
+		return s.name
+	}
+	if s, ok := tls13Suites[id]; ok {
 		return s.name
 	}
 	return fmt.Sprintf("0x%04x", id)

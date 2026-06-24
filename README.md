@@ -85,7 +85,7 @@ suffit pas pour le trafic moderne.
 3. Les sessions déchiffrables affichent les données applicatives en clair (requêtes/
    réponses HTTP, etc.) dans les deux sens.
 
-Pris en charge (v1) : **TLS 1.2** avec suites **AES-128/256-GCM**. API :
+Pris en charge : **TLS 1.2 et TLS 1.3** avec suites **AES-128/256-GCM**. API :
 `POST /api/tls/decrypt` (corps = contenu du key log).
 
 ## Debug & logs

@@ -54,30 +54,41 @@ func decryptStreams(clientStream, serverStream []byte, kl *KeyLog) Session {
 	}
 	s.CipherSuite = suiteName(suiteID)
 
-	suite, ok := gcmSuites[suiteID]
-	if !ok {
-		s.Note = "unsupported cipher suite (only TLS 1.2 AES-GCM is supported)"
+	sec, hasSecrets := kl.secretsFor(cRandom)
+	if !hasSecrets {
+		s.Note = "no matching ClientHello random in the key log"
 		return s
 	}
 
-	master, ok := kl.MasterSecret(cRandom)
-	if !ok {
-		s.Note = "no matching CLIENT_RANDOM in the key log"
-		return s
+	switch {
+	case is13Suite(suiteID):
+		s.Version = "TLS 1.3"
+		decryptStreams13(&s, cRecs, sRecs, suiteID, sec)
+	case isGCMSuite(suiteID):
+		decryptStreams12(&s, cRecs, sRecs, cRandom, sRandom, suiteID, sec)
+	default:
+		s.Note = "unsupported cipher suite (TLS 1.2/1.3 AES-GCM only)"
 	}
+	return s
+}
 
-	km := deriveKeys(master, cRandom, sRandom, suite)
+// decryptStreams12 handles the TLS 1.2 AES-GCM path.
+func decryptStreams12(s *Session, cRecs, sRecs []tlsRecord, cRandom, sRandom [32]byte, suiteID uint16, sec *secrets) {
+	if len(sec.master) == 0 {
+		s.Note = "no TLS 1.2 master secret (CLIENT_RANDOM) in the key log"
+		return
+	}
+	suite := gcmSuites[suiteID]
+	km := deriveKeys(sec.master, cRandom, sRandom, suite)
 	cGCM, err1 := newGCM(km.clientKey, km.clientIV)
 	sGCM, err2 := newGCM(km.serverKey, km.serverIV)
 	if err1 != nil || err2 != nil {
 		s.Note = "key setup failed"
-		return s
+		return
 	}
-
 	s.ClientData = decryptDirection(cRecs, cGCM)
 	s.ServerData = decryptDirection(sRecs, sGCM)
 	s.Decrypted = true
-	return s
 }
 
 // handshakeBefore concatenates the plaintext handshake fragments that appear

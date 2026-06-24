@@ -64,7 +64,7 @@
           ou <code class="mono">curl</code>, puis recapture le trafic.
         </p>
         <p class="muted">
-          Pris en charge dans cette version : <b>TLS 1.2</b> avec suites <b>AES-GCM</b>
+          Pris en charge : <b>TLS 1.2 et TLS 1.3</b> avec suites <b>AES-GCM</b>
           (la clé privée RSA seule ne suffit pas pour l'ECDHE/TLS 1.3 — d'où le key log).
         </p>
       </div>
