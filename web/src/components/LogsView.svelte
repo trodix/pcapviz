@@ -185,6 +185,11 @@
     border: 1px solid var(--border);
     border-radius: 6px;
     padding: 4px 8px;
+    color-scheme: dark;
+  }
+  select option {
+    background: #0b1220;
+    color: var(--text);
   }
   .btn {
     font: inherit;

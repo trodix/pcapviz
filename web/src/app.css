@@ -10,6 +10,9 @@
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   font-size: 13px;
   color: var(--text);
+  /* Render native controls (select dropdowns, scrollbars, checkboxes) in dark
+     mode, so they don't fall back to the OS light theme (white-on-white). */
+  color-scheme: dark;
 }
 
 * {
