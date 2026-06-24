@@ -29,6 +29,9 @@ type IndexStore interface {
 	Page(match func(domain.Packet) bool, offset, limit int) (items []domain.Packet, total int)
 	// Raw returns the raw bytes of packet number num (1-based).
 	Raw(num int) (raw []byte, ok bool)
+	// Raws returns the raw bytes of every packet, in capture order (used for
+	// stream reassembly, e.g. TLS decryption).
+	Raws() [][]byte
 	Reset()
 }
 

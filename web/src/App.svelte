@@ -4,11 +4,12 @@
   import PacketDetail from "./components/PacketDetail.svelte";
   import StatsView from "./components/StatsView.svelte";
   import LogsView from "./components/LogsView.svelte";
+  import TlsView from "./components/TlsView.svelte";
   import StatusBar from "./components/StatusBar.svelte";
 
   let loaded = $state(false);
   let count = $state(0);
-  let view: "packets" | "stats" | "logs" = $state("packets");
+  let view: "packets" | "stats" | "tls" | "logs" = $state("packets");
   let filterInput = $state("");
   let activeFilter = $state("");
   let selected = $state<number | null>(null);
@@ -76,6 +77,7 @@
     <button onclick={applyFilter}>Filtrer</button>
     <button class:active={view === "packets"} onclick={() => (view = "packets")}>Paquets</button>
     <button class:active={view === "stats"} onclick={() => (view = "stats")}>Statistiques</button>
+    <button class:active={view === "tls"} onclick={() => (view = "tls")}>TLS</button>
   {:else}
     <span class="grow muted">Aucune capture chargée. Ouvrez un fichier .pcap / .pcapng.</span>
   {/if}
@@ -103,9 +105,13 @@
         </div>
       {/if}
     </div>
-  {:else}
+  {:else if view === "stats"}
     <div style="flex:1; overflow:auto;">
       <StatsView />
+    </div>
+  {:else}
+    <div style="flex:1; min-height:0;">
+      <TlsView />
     </div>
   {/if}
 {:else}

@@ -72,6 +72,22 @@ make desktop-all      # les deux
 
 Puis ouvrir un fichier via le bouton « Ouvrir un .pcap » ou en préchargeant en argument.
 
+## Déchiffrement TLS
+
+Onglet **TLS** : déchiffre les sessions TLS de la capture à partir d'un
+**SSLKEYLOGFILE** (format NSS). C'est la méthode standard (celle de Wireshark) et
+la seule compatible avec la forward secrecy (ECDHE) — une clé privée RSA seule ne
+suffit pas pour le trafic moderne.
+
+1. Côté client, avant de générer le trafic : `export SSLKEYLOGFILE=/chemin/keys.log`
+   (supporté par les navigateurs, `curl`, etc.), puis capture le trafic avec `tcpdump`.
+2. Charge le `.pcap` dans pcapviz, onglet **TLS**, puis charge le `keys.log`.
+3. Les sessions déchiffrables affichent les données applicatives en clair (requêtes/
+   réponses HTTP, etc.) dans les deux sens.
+
+Pris en charge (v1) : **TLS 1.2** avec suites **AES-128/256-GCM**. API :
+`POST /api/tls/decrypt` (corps = contenu du key log).
+
 ## Debug & logs
 
 Pas de fichier de log créé au démarrage. À la place :

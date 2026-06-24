@@ -100,6 +100,16 @@ func (s *Store) Raw(num int) ([]byte, bool) {
 	return nil, false
 }
 
+func (s *Store) Raws() [][]byte {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([][]byte, len(s.entries))
+	for i := range s.entries {
+		out[i] = s.entries[i].raw
+	}
+	return out
+}
+
 func (s *Store) Reset() {
 	s.mu.Lock()
 	s.entries = nil

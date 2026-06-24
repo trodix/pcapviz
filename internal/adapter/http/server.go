@@ -58,6 +58,7 @@ func NewHandler(svc *app.Service, open Opener, logger *observ.Logger) http.Handl
 	mux.HandleFunc("GET /api/crashes", h.listCrashes)
 	mux.HandleFunc("GET /api/crashes/{name}", h.getCrash)
 	mux.HandleFunc("GET /api/meminfo", h.meminfo)
+	mux.HandleFunc("POST /api/tls/decrypt", h.tlsDecrypt)
 
 	sub, _ := fs.Sub(distFS, "dist")
 	mux.Handle("/", http.FileServer(http.FS(sub)))

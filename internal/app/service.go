@@ -11,6 +11,7 @@ import (
 
 	"pcapviz/internal/domain"
 	"pcapviz/internal/port"
+	"pcapviz/internal/tlsdecrypt"
 )
 
 // ErrNotFound is returned when a requested packet does not exist.
@@ -98,4 +99,18 @@ func (s *Service) Stats() domain.Stats {
 // Conversations returns just the conversation list from the overview.
 func (s *Service) Conversations() []domain.Conversation {
 	return s.Stats().Conversations
+}
+
+// DecryptTLS reassembles the capture's TCP streams and decrypts the TLS 1.2
+// sessions for which the SSLKEYLOGFILE provides the master secret.
+func (s *Service) DecryptTLS(keylog []byte) []tlsdecrypt.Session {
+	sessions := tlsdecrypt.Decrypt(s.store.Raws(), s.store.LinkType(), keylog)
+	decrypted := 0
+	for _, ss := range sessions {
+		if ss.Decrypted {
+			decrypted++
+		}
+	}
+	s.log.Info("tls decrypt", "sessions", len(sessions), "decrypted", decrypted)
+	return sessions
 }

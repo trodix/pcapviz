@@ -186,3 +186,24 @@ export interface MemInfo {
 export function getMemInfo(): Promise<MemInfo> {
   return fetch("/api/meminfo").then((r) => json<MemInfo>(r));
 }
+
+// --- TLS decryption ---
+
+export interface TlsSession {
+  client: string;
+  server: string;
+  version: string;
+  cipherSuite: string;
+  decrypted: boolean;
+  note?: string;
+  clientBytes: number;
+  serverBytes: number;
+  clientText?: string;
+  serverText?: string;
+}
+
+export function decryptTls(keylog: string): Promise<TlsSession[]> {
+  return fetch("/api/tls/decrypt", { method: "POST", body: keylog }).then((r) =>
+    json<TlsSession[]>(r),
+  );
+}
